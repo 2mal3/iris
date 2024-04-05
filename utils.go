@@ -13,7 +13,7 @@ import (
 	"gopkg.in/vansante/go-ffprobe.v2"
 )
 
-func doesFileExist(path string) bool {
+func doesPathExist(path string) bool {
 	_, err := os.Stat(path)
 	if err == nil {
 		return true

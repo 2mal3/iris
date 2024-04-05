@@ -145,7 +145,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 
 	// Create the folder if it doesn't exist
 	folderPath := filepath.Dir(destFilePath.generate())
-	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+	if doesPathExist(folderPath) {
 		err := os.MkdirAll(folderPath, os.ModePerm)
 		if err != nil {
 			slog.Error("Could not create folder", "path", folderPath, "error", err.Error())
@@ -155,7 +155,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	}
 
 	// File exists, check if they are the same
-	for doesFileExist(destFilePath.generate()) {
+	for doesPathExist(destFilePath.generate()) {
 		srcFileHash, err := getFileHash(srcFile)
 		if err != nil {
 			slog.Error("Could not get file hash", "path", srcFilePath, "error", err.Error())
