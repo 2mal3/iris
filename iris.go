@@ -148,22 +148,14 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		return nil
 	}
 
-	// Determine folder name to put the file in
-	yearQuarter, err := getYearQuarter(creationTime)
-	if err != nil {
-		slog.Error("Could not get year quarter", "path", srcFilePath, "error", err.Error())
-		return nil
+	destFilePath := destFilePath{
+		rootPath:      config.OutputPath,
+		creationTime:  creationTime,
+		fileExtension: filepath.Ext(srcFilePath),
 	}
 
-	// Determine the new file name
-	destFilePath := filepath.Join(
-		config.OutputPath,
-		yearQuarter,
-		creationTime.Format("2006-01-02_15-04-05")+filepath.Ext(srcFilePath),
-	)
-
 	// Create the folder if it doesn't exist
-	folderPath := filepath.Dir(destFilePath)
+	folderPath := filepath.Dir(destFilePath.generate())
 	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
 		err := os.MkdirAll(folderPath, os.ModePerm)
 		if err != nil {
@@ -174,7 +166,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	}
 
 	// Check if the file already exists
-	if doesFileExist(destFilePath) {
+	if doesFileExist(destFilePath.generate()) {
 		// File exists, check if they are the same
 		srcFileHash, err := getFileHash(srcFile)
 		if err != nil {
@@ -183,15 +175,15 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		}
 
 		// Get hash of the existing file
-		destFile, err := os.Open(destFilePath)
+		destFile, err := os.Open(destFilePath.generate())
 		if err != nil {
-			slog.Error("Could not open file", "path", destFilePath, "error", err.Error())
+			slog.Error("Could not open file", "path", destFilePath.generate(), "error", err.Error())
 			return nil
 		}
 		defer destFile.Close()
 		destFileHash, err := getFileHash(srcFile)
 		if err != nil {
-			slog.Error("Could not get file hash", "path", destFilePath, "error", err.Error())
+			slog.Error("Could not get file hash", "path", destFilePath.generate(), "error", err.Error())
 			return nil
 		}
 
@@ -200,12 +192,12 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 			// slog.Warn("File already exists", "path", newFilePath)
 			return nil
 		} else {
-			slog.Warn("Different file with same path found", "path", destFilePath)
+			slog.Warn("Different file with same path found", "path", destFilePath.generate())
 		}
 	}
 
 	// Copy or move the file
-	err = copyFile(srcFile, destFilePath)
+	err = copyFile(srcFile, destFilePath.generate())
 	if err != nil {
 		slog.Error("Could not copy file", "path", srcFilePath, "error", err.Error())
 		return nil
@@ -220,6 +212,36 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 
 	return nil
 }
+
+type destFilePath struct {
+	rootPath      string
+	creationTime  time.Time
+	suffix        string
+	fileExtension string
+}
+
+func (d *destFilePath) generate() string {
+	// Determine folder name to put the file in
+	var yearQuarter string
+	if d.creationTime.Month() <= 2 {
+		yearQuarter = fmt.Sprintf("%d-4", d.creationTime.Year()-1)
+	} else if d.creationTime.Month() <= 5 {
+		yearQuarter = fmt.Sprintf("%d-1", d.creationTime.Year())
+	} else if d.creationTime.Month() <= 8 {
+		yearQuarter = fmt.Sprintf("%d-2", d.creationTime.Year())
+	} else if d.creationTime.Month() <= 11 {
+		yearQuarter = fmt.Sprintf("%d-3", d.creationTime.Year())
+	} else if d.creationTime.Month() == 12 {
+		yearQuarter = fmt.Sprintf("%d-4", d.creationTime.Year())
+	}
+
+	destFilePath := filepath.Join(
+		d.rootPath,
+		yearQuarter,
+		d.creationTime.Format("2006-01-02_15-04-05")+d.suffix+d.fileExtension,
+	)
+
+	return destFilePath
 }
 
 func doesFileExist(path string) bool {
@@ -273,22 +295,6 @@ func getFileContentType(file *os.File) (string, error) {
 	// Detect the content type based on the file header
 	contentType := http.DetectContentType(buffer)
 	return contentType, nil
-}
-
-func getYearQuarter(date time.Time) (string, error) {
-	if date.Month() <= 2 {
-		return fmt.Sprintf("%d-4", date.Year()-1), nil
-	} else if date.Month() <= 5 {
-		return fmt.Sprintf("%d-1", date.Year()), nil
-	} else if date.Month() <= 8 {
-		return fmt.Sprintf("%d-2", date.Year()), nil
-	} else if date.Month() <= 11 {
-		return fmt.Sprintf("%d-3", date.Year()), nil
-	} else if date.Month() == 12 {
-		return fmt.Sprintf("%d-4", date.Year()), nil
-	}
-
-	return "", fmt.Errorf("could not get year quarter")
 }
 
 func getImageCreationTime(file *os.File) (time.Time, error) {
