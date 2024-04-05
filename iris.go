@@ -163,6 +163,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 			"IMG_20060102_150405",
 			"PXL_20060102_150405",
 			"IMG-20060102",
+			"signal-2006-01-02-15-04-05",
 		}
 		for _, format := range possibleTimeFormats {
 			// Try to remove some random stuff at the end of some image names
