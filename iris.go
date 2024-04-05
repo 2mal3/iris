@@ -154,8 +154,8 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		}
 	}
 
+	// File exists, check if they are the same
 	for doesFileExist(destFilePath.generate()) {
-		// File exists, check if they are the same
 		srcFileHash, err := getFileHash(srcFile)
 		if err != nil {
 			slog.Error("Could not get file hash", "path", srcFilePath, "error", err.Error())
@@ -168,12 +168,12 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 			slog.Error("Could not open file", "path", destFilePath.generate(), "error", err.Error())
 			return nil
 		}
-		defer destFile.Close()
-		destFileHash, err := getFileHash(srcFile)
+		destFileHash, err := getFileHash(destFile)
 		if err != nil {
 			slog.Error("Could not get file hash", "path", destFilePath.generate(), "error", err.Error())
 			return nil
 		}
+		destFile.Close()
 
 		if srcFileHash == destFileHash {
 			// Skip if they are the same
