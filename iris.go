@@ -104,23 +104,26 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	}
 
 	// slog.Info("Processing file", "path", srcFilePath)
+	destFilePath := destFilePath{
+		rootPath:      config.OutputPath,
+		fileExtension: filepath.Ext(srcFilePath),
+	}
 
 	// Get creation time, important to distinct images and videos since they have different metadata
-	var creationTime time.Time
 	if strings.HasPrefix(fileContentType, "image") {
-		creationTime, err = getImageCreationTime(srcFile)
+		destFilePath.creationTime, err = getImageCreationTime(srcFile)
 		if err != nil {
 			slog.Warn("Could not get image creation time from metadata", "path", srcFilePath, "error", err.Error())
 		}
 	}
 	if strings.HasPrefix(fileContentType, "video") {
-		creationTime, err = getVideoCreationTime(srcFile)
+		destFilePath.creationTime, err = getVideoCreationTime(srcFile)
 		if err != nil {
 			slog.Warn("Could not get video creation time from metadata", "path", srcFilePath, "error", err.Error())
 		}
 	}
 	// Try to get date from the filename if the above don't work
-	if creationTime.IsZero() {
+	if destFilePath.creationTime.IsZero() {
 		srcFileName := strings.TrimSuffix(filepath.Base(srcFilePath), filepath.Ext(srcFilePath))
 		possibleTimeFormats := []string{
 			"2006-01-02_15-04-05",
@@ -130,21 +133,15 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		}
 		for _, format := range possibleTimeFormats {
 			cleanSrcFileName := srcFileName[:len(format)] // Remove some random stuff at the end of some image names
-			creationTime, err = time.Parse(format, cleanSrcFileName)
+			destFilePath.creationTime, err = time.Parse(format, cleanSrcFileName)
 			if err == nil {
 				break
 			}
 		}
 	}
-	if creationTime.IsZero() {
+	if destFilePath.creationTime.IsZero() {
 		slog.Error("Could not determine creation time", "path", srcFilePath)
 		return nil
-	}
-
-	destFilePath := destFilePath{
-		rootPath:      config.OutputPath,
-		creationTime:  creationTime,
-		fileExtension: filepath.Ext(srcFilePath),
 	}
 
 	// Create the folder if it doesn't exist
