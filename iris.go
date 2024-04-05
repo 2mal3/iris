@@ -103,7 +103,6 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		return nil
 	}
 
-	// slog.Info("Processing file", "path", srcFilePath)
 	destFilePath := destFilePath{
 		rootPath:      config.OutputPath,
 		fileExtension: filepath.Ext(srcFilePath),
@@ -155,8 +154,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		}
 	}
 
-	// Check if the file already exists
-	if doesFileExist(destFilePath.generate()) {
+	for doesFileExist(destFilePath.generate()) {
 		// File exists, check if they are the same
 		srcFileHash, err := getFileHash(srcFile)
 		if err != nil {
@@ -177,12 +175,14 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 			return nil
 		}
 
-		// Skip if they are the same
 		if srcFileHash == destFileHash {
-			// slog.Warn("File already exists", "path", newFilePath)
+			// Skip if they are the same
+			slog.Warn("File already exists", "path", destFilePath.generate())
 			return nil
 		} else {
+			// Try another name if they are different
 			slog.Warn("Different file with same path found", "path", destFilePath.generate())
+			destFilePath.number++
 		}
 	}
 
@@ -206,7 +206,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 type destFilePath struct {
 	rootPath      string
 	creationTime  time.Time
-	suffix        string
+	number        int
 	fileExtension string
 }
 
@@ -225,10 +225,15 @@ func (d *destFilePath) generate() string {
 		yearQuarter = fmt.Sprintf("%d-4", d.creationTime.Year())
 	}
 
+	var numberSuffix string
+	if d.number != 0 {
+		numberSuffix = fmt.Sprintf("_%d", d.number)
+	}
+
 	destFilePath := filepath.Join(
 		d.rootPath,
 		yearQuarter,
-		d.creationTime.Format("2006-01-02_15-04-05")+d.suffix+d.fileExtension,
+		d.creationTime.Format("2006-01-02_15-04-05")+numberSuffix+d.fileExtension,
 	)
 
 	return destFilePath
