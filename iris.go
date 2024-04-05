@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wneessen/go-fileperm"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,12 +29,43 @@ func main() {
 	slog.Info("Loading config ...")
 	if err := loadConfig(&config); err != nil {
 		slog.Error(err.Error())
-		os.Exit(1)
+		return
 	}
 
-	for _, path := range config.InputPaths {
-		slog.Info("Processing folder", "path", path)
-		if err := filepath.WalkDir(path, walk); err != nil {
+	// Check if output path exists
+	if !doesPathExist(config.OutputPath) {
+		slog.Error("Output folder does not exist")
+		return
+	}
+	// and if we have the permission to write to it
+	permissions, err := fileperm.New(config.OutputPath)
+	if err != nil {
+		slog.Error(err.Error())
+		return
+	}
+	if !permissions.UserWriteReadable() {
+		slog.Error("No write and/or read permission for output folder")
+	}
+
+	for _, inputFolderPath := range config.InputPaths {
+		slog.Info("Processing folder", "path", inputFolderPath)
+
+		// Check if output path exists
+		if !doesPathExist(inputFolderPath) {
+			slog.Error("Input folder does not exist")
+			return
+		}
+		// and if we have the permission to write to it
+		permissions, err := fileperm.New(inputFolderPath)
+		if err != nil {
+			slog.Error(err.Error())
+			return
+		}
+		if !permissions.UserWriteReadable() {
+			slog.Error("No write and/or read permission for input folder path")
+		}
+
+		if err := filepath.WalkDir(inputFolderPath, walk); err != nil {
 			slog.Error(err.Error())
 		}
 	}
