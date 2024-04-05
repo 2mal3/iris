@@ -110,13 +110,13 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	if strings.HasPrefix(fileContentType, "image") {
 		creationTime, err = getImageCreationTime(srcFile)
 		if err != nil {
-			slog.Warn("Could not get image creation time", "path", srcFilePath, "error", err.Error())
+			slog.Warn("Could not get image creation time from metadata", "path", srcFilePath, "error", err.Error())
 		}
 	}
 	if strings.HasPrefix(fileContentType, "video") {
 		creationTime, err = getVideoCreationTime(srcFile)
 		if err != nil {
-			slog.Warn("Could not get video creation time", "path", srcFilePath, "error", err.Error())
+			slog.Warn("Could not get video creation time from metadata", "path", srcFilePath, "error", err.Error())
 		}
 	}
 	// Try to get date from the filename if the above don't work
@@ -132,7 +132,6 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 			cleanSrcFileName := srcFileName[:len(format)] // Remove some random stuff at the end of some image names
 			creationTime, err = time.Parse(format, cleanSrcFileName)
 			if err == nil {
-				slog.Info("Found creation time from filename", "filename", cleanSrcFileName, "format", format, "time", creationTime)
 				break
 			}
 		}
