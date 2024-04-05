@@ -29,9 +29,8 @@ func getFileHash(file *os.File) (string, error) {
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", err
 	}
-
 	// Reset the file's read position because we want to use the same file object again
-	file.Seek(0, 0)
+	defer file.Seek(0, 0)
 
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
@@ -47,6 +46,8 @@ func copyFile(sourceFile *os.File, destPath string) error {
 	if err != nil {
 		return err
 	}
+	// Reset the file's read position because we want to use the same file object again
+	defer sourceFile.Seek(0, 0)
 
 	return nil
 }
@@ -59,7 +60,7 @@ func getFileContentType(file *os.File) (string, error) {
 		return "", err
 	}
 	// Reset the file's read position because we want to use the same file object again
-	file.Seek(0, 0)
+	defer file.Seek(0, 0)
 
 	// Detect the content type based on the file header
 	contentType := http.DetectContentType(buffer)
@@ -71,14 +72,13 @@ func getImageCreationTime(file *os.File) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+	// Reset the file's read position because we want to use the same file object again
+	defer file.Seek(0, 0)
 
 	creationTime, err := data.DateTime()
 	if err != nil {
 		return time.Time{}, err
 	}
-
-	// Reset the file's read position because we want to use the same file object again
-	file.Seek(0, 0)
 
 	return creationTime, nil
 }
@@ -91,6 +91,8 @@ func getVideoCreationTime(file *os.File) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+	// Reset the file's read position because we want to use the same file object again
+	defer file.Seek(0, 0)
 
 	creationTimeString, err := data.Format.TagList.GetString("creation_time")
 	if err != nil {
@@ -100,9 +102,6 @@ func getVideoCreationTime(file *os.File) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-
-	// Reset the file's read position because we want to use the same file object again
-	file.Seek(0, 0)
 
 	return creationTime, nil
 }
