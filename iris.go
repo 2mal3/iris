@@ -165,7 +165,12 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 			"IMG-20060102",
 		}
 		for _, format := range possibleTimeFormats {
-			cleanSrcFileName := srcFileName[:len(format)] // Remove some random stuff at the end of some image names
+			// Try to remove some random stuff at the end of some image names
+			if len(srcFileName) < len(format) {
+				continue
+			}
+			cleanSrcFileName := srcFileName[:len(format)]
+
 			destFilePath.creationTime, err = time.Parse(format, cleanSrcFileName)
 			if err == nil {
 				break
