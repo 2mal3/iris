@@ -145,7 +145,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 
 	// Create the folder if it doesn't exist
 	folderPath := filepath.Dir(destFilePath.generate())
-	if doesPathExist(folderPath) {
+	if !doesPathExist(folderPath) {
 		err := os.MkdirAll(folderPath, os.ModePerm)
 		if err != nil {
 			slog.Error("Could not create folder", "path", folderPath, "error", err.Error())
