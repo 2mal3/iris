@@ -1,0 +1,6 @@
+# editor files
+.vscode/
+
+# individual files
+config.yaml
+tests/

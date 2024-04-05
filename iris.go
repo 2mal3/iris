@@ -1,0 +1,333 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/rwcarlsen/goexif/exif"
+	"gopkg.in/vansante/go-ffprobe.v2"
+	"gopkg.in/yaml.v3"
+)
+
+type Config struct {
+	InputPaths []string `yaml:"input_paths"`
+	OutputPath string   `yaml:"output_path"`
+	MoveFiles  bool     `yaml:"move_files"`
+}
+
+var config Config = Config{
+	MoveFiles: true,
+}
+
+func main() {
+	slog.Info("Starting Iris...")
+
+	slog.Info("Loading config ...")
+	if err := loadConfig(&config); err != nil {
+		slog.Error(err.Error())
+		os.Exit(1)
+	}
+
+	for _, path := range config.InputPaths {
+		slog.Info("Processing folder", "path", path)
+		if err := filepath.WalkDir(path, walk); err != nil {
+			slog.Error(err.Error())
+		}
+	}
+
+	slog.Info("Done!")
+}
+
+func loadConfig(configVar *Config) error {
+	yamlFile, err := os.ReadFile("config.yaml")
+	if err != nil {
+		return err
+	}
+
+	err = yaml.Unmarshal(yamlFile, configVar)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
+	if err != nil {
+		slog.Error(err.Error())
+		return nil
+	}
+
+	if srcFileInfo.IsDir() {
+		// Skip hidden folders
+		if strings.HasPrefix(srcFileInfo.Name(), ".") {
+			return filepath.SkipDir
+			// Don't process folders
+		} else {
+			return nil
+		}
+	}
+
+	// Skip non regular files
+	if !srcFileInfo.Type().IsRegular() {
+		return nil
+	}
+
+	// Skip hidden files
+	if strings.HasPrefix(srcFileInfo.Name(), ".") {
+		return nil
+	}
+
+	// Open srcFile
+	srcFile, err := os.Open(srcFilePath)
+	if err != nil {
+		slog.Error(err.Error())
+		return nil
+	}
+	defer srcFile.Close()
+
+	// Get file content type, important to distinct images and videos
+	fileContentType, err := getFileContentType(srcFile)
+	if err != nil {
+		slog.Error("Could not get file content type", "path", srcFilePath, "error", err.Error())
+		return nil
+	}
+
+	// Skip non image and video files
+	supportedFileContentTypes := []string{"image/jpeg", "video/mp4"}
+	if !slices.Contains(supportedFileContentTypes, fileContentType) {
+		slog.Warn("File is not a image or video", "path", srcFilePath, "fileContentTrypes", fileContentType)
+		return nil
+	}
+
+	// slog.Info("Processing file", "path", srcFilePath)
+
+	// Get creation time, important to distinct images and videos since they have different metadata
+	var creationTime time.Time
+	if strings.HasPrefix(fileContentType, "image") {
+		creationTime, err = getImageCreationTime(srcFile)
+		if err != nil {
+			slog.Warn("Could not get image creation time", "path", srcFilePath, "error", err.Error())
+		}
+	}
+	if strings.HasPrefix(fileContentType, "video") {
+		creationTime, err = getVideoCreationTime(srcFile)
+		if err != nil {
+			slog.Warn("Could not get video creation time", "path", srcFilePath, "error", err.Error())
+		}
+	}
+	// Try to get date from the filename if the above don't work
+	if creationTime.IsZero() {
+		srcFileName := strings.TrimSuffix(filepath.Base(srcFilePath), filepath.Ext(srcFilePath))
+		possibleTimeFormats := []string{
+			"2006-01-02_15-04-05",
+			"IMG_20060102_150405",
+			"PXL_20060102_150405",
+			"IMG-20060102",
+		}
+		for _, format := range possibleTimeFormats {
+			cleanSrcFileName := srcFileName[:len(format)] // Remove some random stuff at the end of some image names
+			creationTime, err = time.Parse(format, cleanSrcFileName)
+			if err == nil {
+				slog.Info("Found creation time from filename", "filename", cleanSrcFileName, "format", format, "time", creationTime)
+				break
+			}
+		}
+	}
+	if creationTime.IsZero() {
+		slog.Error("Could not determine creation time", "path", srcFilePath)
+		return nil
+	}
+
+	// Determine folder name to put the file in
+	yearQuarter, err := getYearQuarter(creationTime)
+	if err != nil {
+		slog.Error("Could not get year quarter", "path", srcFilePath, "error", err.Error())
+		return nil
+	}
+
+	// Determine the new file name
+	destFilePath := filepath.Join(
+		config.OutputPath,
+		yearQuarter,
+		creationTime.Format("2006-01-02_15-04-05")+filepath.Ext(srcFilePath),
+	)
+
+	// Create the folder if it doesn't exist
+	folderPath := filepath.Dir(destFilePath)
+	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+		err := os.MkdirAll(folderPath, os.ModePerm)
+		if err != nil {
+			slog.Error("Could not create folder", "path", folderPath, "error", err.Error())
+			// Stop completely since this likely also affects other files
+			return filepath.SkipAll
+		}
+	}
+
+	// Check if the file already exists
+	if doesFileExist(destFilePath) {
+		// File exists, check if they are the same
+		srcFileHash, err := getFileHash(srcFile)
+		if err != nil {
+			slog.Error("Could not get file hash", "path", srcFilePath, "error", err.Error())
+			return nil
+		}
+
+		// Get hash of the existing file
+		destFile, err := os.Open(destFilePath)
+		if err != nil {
+			slog.Error("Could not open file", "path", destFilePath, "error", err.Error())
+			return nil
+		}
+		defer destFile.Close()
+		destFileHash, err := getFileHash(srcFile)
+		if err != nil {
+			slog.Error("Could not get file hash", "path", destFilePath, "error", err.Error())
+			return nil
+		}
+
+		// Skip if they are the same
+		if srcFileHash == destFileHash {
+			// slog.Warn("File already exists", "path", newFilePath)
+			return nil
+		} else {
+			slog.Warn("Different file with same path found", "path", destFilePath)
+		}
+	}
+
+	// Copy or move the file
+	err = copyFile(srcFile, destFilePath)
+	if err != nil {
+		slog.Error("Could not copy file", "path", srcFilePath, "error", err.Error())
+		return nil
+	}
+	if config.MoveFiles {
+		err = os.Remove(srcFilePath)
+		if err != nil {
+			slog.Error("Could not remove file", "path", srcFilePath, "error", err.Error())
+			return nil
+		}
+	}
+
+	return nil
+}
+}
+
+func doesFileExist(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	} else if os.IsNotExist(err) {
+		return false
+	} else {
+		return false
+	}
+}
+
+func getFileHash(file *os.File) (string, error) {
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	// Reset the file's read position because we want to use the same file object again
+	file.Seek(0, 0)
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func copyFile(sourceFile *os.File, destPath string) error {
+	desFile, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+	defer desFile.Close()
+
+	_, err = io.Copy(desFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getFileContentType(file *os.File) (string, error) {
+	// Read the first 512 bytes of the file
+	buffer := make([]byte, 512)
+	_, err := file.Read(buffer)
+	if err != nil {
+		return "", err
+	}
+	// Reset the file's read position because we want to use the same file object again
+	file.Seek(0, 0)
+
+	// Detect the content type based on the file header
+	contentType := http.DetectContentType(buffer)
+	return contentType, nil
+}
+
+func getYearQuarter(date time.Time) (string, error) {
+	if date.Month() <= 2 {
+		return fmt.Sprintf("%d-4", date.Year()-1), nil
+	} else if date.Month() <= 5 {
+		return fmt.Sprintf("%d-1", date.Year()), nil
+	} else if date.Month() <= 8 {
+		return fmt.Sprintf("%d-2", date.Year()), nil
+	} else if date.Month() <= 11 {
+		return fmt.Sprintf("%d-3", date.Year()), nil
+	} else if date.Month() == 12 {
+		return fmt.Sprintf("%d-4", date.Year()), nil
+	}
+
+	return "", fmt.Errorf("could not get year quarter")
+}
+
+func getImageCreationTime(file *os.File) (time.Time, error) {
+	data, err := exif.Decode(file)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	creationTime, err := data.DateTime()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// Reset the file's read position because we want to use the same file object again
+	file.Seek(0, 0)
+
+	return creationTime, nil
+}
+
+func getVideoCreationTime(file *os.File) (time.Time, error) {
+	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFn()
+
+	data, err := ffprobe.ProbeReader(ctx, file)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	creationTimeString, err := data.Format.TagList.GetString("creation_time")
+	if err != nil {
+		return time.Time{}, err
+	}
+	creationTime, err := time.Parse("2006-01-02T15:04:05.000000Z", creationTimeString)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// Reset the file's read position because we want to use the same file object again
+	file.Seek(0, 0)
+
+	return creationTime, nil
+}
