@@ -14,13 +14,15 @@ import (
 )
 
 type Config struct {
-	InputPaths []string `yaml:"input_paths"`
-	OutputPath string   `yaml:"output_path"`
-	MoveFiles  bool     `yaml:"move_files"`
+	InputPaths       []string `yaml:"input_paths"`
+	OutputPath       string   `yaml:"output_path"`
+	MoveFiles        bool     `yaml:"move_files"`
+	RemoveDuplicates bool     `yaml:"remove_duplicates"`
 }
 
 var config Config = Config{
-	MoveFiles: true,
+	MoveFiles:        true,
+	RemoveDuplicates: false,
 }
 
 func main() {
@@ -210,6 +212,15 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		if srcFileHash == destFileHash {
 			// Skip if they are the same
 			slog.Warn("File already exists", "destPath", destFilePath.generate())
+
+			// Remove duplicated file if configured
+			if config.RemoveDuplicates {
+				err := os.Remove(srcFilePath)
+				if err != nil {
+					slog.Error("Could not remove file", "srcPath", srcFilePath, "error", err.Error())
+				}
+			}
+
 			return nil
 		} else {
 			// Try another name if they are different
