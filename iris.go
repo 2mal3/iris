@@ -124,14 +124,14 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	// Get file content type, important to distinct images and videos
 	fileContentType, err := getFileContentType(srcFile)
 	if err != nil {
-		slog.Error("Could not get file content type", "path", srcFilePath, "error", err.Error())
+		slog.Error("Could not get file content type", "srcPath", srcFilePath, "error", err.Error())
 		return nil
 	}
 
 	// Skip non image and video files
 	supportedFileContentTypes := []string{"image/jpeg", "video/mp4"}
 	if !slices.Contains(supportedFileContentTypes, fileContentType) {
-		slog.Warn("File is not a image or video", "path", srcFilePath, "fileContentTrypes", fileContentType)
+		slog.Warn("File is not a image or video", "srcPath", srcFilePath, "fileContentTrypes", fileContentType)
 		return nil
 	}
 
@@ -144,13 +144,13 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	if strings.HasPrefix(fileContentType, "image") {
 		destFilePath.creationTime, err = getImageCreationTime(srcFile)
 		if err != nil {
-			slog.Warn("Could not get image creation time from metadata", "path", srcFilePath, "error", err.Error())
+			slog.Warn("Could not get image creation time from metadata", "srcPath", srcFilePath, "error", err.Error())
 		}
 	}
 	if strings.HasPrefix(fileContentType, "video") {
 		destFilePath.creationTime, err = getVideoCreationTime(srcFile)
 		if err != nil {
-			slog.Warn("Could not get video creation time from metadata", "path", srcFilePath, "error", err.Error())
+			slog.Warn("Could not get video creation time from metadata", "srcPath", srcFilePath, "error", err.Error())
 		}
 	}
 	// Try to get date from the filename if the above don't work
@@ -171,7 +171,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		}
 	}
 	if destFilePath.creationTime.IsZero() {
-		slog.Error("Could not determine creation time", "path", srcFilePath)
+		slog.Error("Could not determine creation time", "srcPath", srcFilePath)
 		return nil
 	}
 
@@ -180,7 +180,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	if !doesPathExist(folderPath) {
 		err := os.MkdirAll(folderPath, os.ModePerm)
 		if err != nil {
-			slog.Error("Could not create folder", "path", folderPath, "error", err.Error())
+			slog.Error("Could not create folder", "folderPath", folderPath, "error", err.Error())
 			// Stop completely since this likely also affects other files
 			return filepath.SkipAll
 		}
@@ -197,23 +197,23 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		// Get hash of the existing file
 		destFile, err := os.Open(destFilePath.generate())
 		if err != nil {
-			slog.Error("Could not open file", "path", destFilePath.generate(), "error", err.Error())
+			slog.Error("Could not open file", "destPath", destFilePath.generate(), "error", err.Error())
 			return nil
 		}
 		destFileHash, err := getFileHash(destFile)
 		if err != nil {
-			slog.Error("Could not get file hash", "path", destFilePath.generate(), "error", err.Error())
+			slog.Error("Could not get file hash", "destPath", destFilePath.generate(), "error", err.Error())
 			return nil
 		}
 		destFile.Close()
 
 		if srcFileHash == destFileHash {
 			// Skip if they are the same
-			slog.Warn("File already exists", "path", destFilePath.generate())
+			slog.Warn("File already exists", "destPath", destFilePath.generate())
 			return nil
 		} else {
 			// Try another name if they are different
-			slog.Warn("Different file with same path found", "path", destFilePath.generate())
+			slog.Warn("Different file with same path found", "destPath", destFilePath.generate())
 			destFilePath.number++
 		}
 	}
@@ -221,13 +221,13 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	// Copy or move the file
 	err = copyFile(srcFile, destFilePath.generate())
 	if err != nil {
-		slog.Error("Could not copy file", "path", srcFilePath, "error", err.Error())
+		slog.Error("Could not copy file", "srcPath", srcFilePath, "error", err.Error())
 		return nil
 	}
 	if config.MoveFiles {
 		err = os.Remove(srcFilePath)
 		if err != nil {
-			slog.Error("Could not remove file", "path", srcFilePath, "error", err.Error())
+			slog.Error("Could not remove file", "srcPath", srcFilePath, "error", err.Error())
 			return nil
 		}
 	}
