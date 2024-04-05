@@ -144,16 +144,10 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 
 	// Get creation time, important to distinct images and videos since they have different metadata
 	if strings.HasPrefix(fileContentType, "image") {
-		destFilePath.creationTime, err = getImageCreationTime(srcFile)
-		if err != nil {
-			slog.Warn("Could not get image creation time from metadata", "srcPath", srcFilePath, "error", err.Error())
-		}
+		destFilePath.creationTime, _ = getImageCreationTime(srcFile)
 	}
 	if strings.HasPrefix(fileContentType, "video") {
-		destFilePath.creationTime, err = getVideoCreationTime(srcFile)
-		if err != nil {
-			slog.Warn("Could not get video creation time from metadata", "srcPath", srcFilePath, "error", err.Error())
-		}
+		destFilePath.creationTime, _ = getVideoCreationTime(srcFile)
 	}
 	// Try to get date from the filename if the above don't work
 	if destFilePath.creationTime.IsZero() {
