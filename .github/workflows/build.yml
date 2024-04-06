@@ -1,0 +1,45 @@
+name: "Build"
+
+on:
+  push:
+    branches:
+      - "main"
+    tags:
+      - "v*.*.*"
+
+jobs:
+  create-release:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Create Release"
+        uses: "softprops/action-gh-release@v2"
+        with:
+          tag_name: "${{ github.ref_name }}"
+          name: "iris ${{ github.ref_name }}"
+
+  build:
+    needs:
+      - "create-release"
+    runs-on: "ubuntu-latest"
+    strategy:
+      matrix:
+        os: ["linux"]
+        arch: ["amd64", "arm64"]
+
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v4"
+
+      - name: "Setup Go"
+        uses: "actions/setup-go@v5"
+        with:
+          go-version-file: "go.mod"
+
+      - name: "Build"
+        run: "GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o iris-${{ matrix.os }}-${{ matrix.arch }}"
+
+      - name: "Upload to Release"
+        uses: "softprops/action-gh-release@v2"
+        with:
+          tag_name: "${{ github.ref_name }}"
+          files: "iris*"
