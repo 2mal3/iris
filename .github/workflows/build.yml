@@ -43,4 +43,4 @@ jobs:
         uses: "softprops/action-gh-release@v2"
         with:
           tag_name: "${{ github.ref_name }}"
-          files: "iris-*"
+          files: "iris*"
