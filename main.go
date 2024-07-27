@@ -152,12 +152,14 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	// Try to get date from the filename if the above don't work
 	if destFilePath.creationTime.IsZero() {
 		srcFileName := strings.TrimSuffix(filepath.Base(srcFilePath), filepath.Ext(srcFilePath))
+		// 2006: year, 01: month, 02: day, 15: hour, 04: minute, 05: second
 		possibleTimeFormats := []string{
 			"2006-01-02_15-04-05",
 			"IMG_20060102_150405",
 			"PXL_20060102_150405",
 			"IMG-20060102",
 			"signal-2006-01-02-15-04-05",
+			"image_20060102150405",
 		}
 		for _, format := range possibleTimeFormats {
 			// Try to remove some random stuff at the end of some image names
