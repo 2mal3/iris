@@ -44,19 +44,23 @@ func Main(inputConfig Config) error {
 
 		// Check if output path exists
 		if !doesPathExist(inputFolderPath) {
-			return errors.New("Input folder does not exist")
+			fmt.Fprintln(os.Stderr, "Input folder does not exist", inputFolderPath)
+			continue
 		}
 		// and if we have the permission to write to it
 		permissions, err := fileperm.New(inputFolderPath)
 		if err != nil {
-			return err
+			fmt.Fprintln(os.Stderr, "File permission error", err)
+			continue
 		}
 		if !permissions.UserWriteReadable() {
-			return errors.New("No write and/or read permission for input folder path")
+			fmt.Fprintln(os.Stderr, "No write and/or read permission for input folder path", inputFolderPath)
+			continue
 		}
 
 		if err := filepath.WalkDir(inputFolderPath, walk); err != nil {
-			return err
+			fmt.Fprintln(os.Stderr, err)
+			continue
 		}
 	}
 
