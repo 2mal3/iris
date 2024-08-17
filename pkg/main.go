@@ -3,7 +3,6 @@ package pkg
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -25,7 +24,7 @@ type Config struct {
 func Main(inputConfig Config) error {
 	config = inputConfig
 
-	slog.Info("Starting Iris ...")
+	fmt.Fprintf(os.Stderr, "Starting Iris ...\n")
 
 	// Check if output path exists
 	if !doesPathExist(config.OutputPath) {
@@ -41,7 +40,7 @@ func Main(inputConfig Config) error {
 	}
 
 	for _, inputFolderPath := range config.InputPaths {
-		slog.Info("Processing folder", "path", inputFolderPath)
+		fmt.Fprintf(os.Stderr, "Processing folder: %s\n", inputFolderPath)
 
 		// Check if output path exists
 		if !doesPathExist(inputFolderPath) {
@@ -66,7 +65,7 @@ func Main(inputConfig Config) error {
 
 func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	if err != nil {
-		slog.Error(err.Error())
+		fmt.Fprintf(os.Stderr, "%v\n", err.Error())
 		return nil
 	}
 
@@ -93,7 +92,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	// Open srcFile
 	srcFile, err := os.Open(srcFilePath)
 	if err != nil {
-		slog.Error(err.Error())
+		fmt.Fprintf(os.Stderr, "%v\n", err.Error())
 		return nil
 	}
 	defer srcFile.Close()
@@ -101,14 +100,14 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	// Get file content type, important to distinct images and videos
 	fileContentType, err := getFileContentType(srcFile)
 	if err != nil {
-		slog.Error("Could not get file content type", "srcPath", srcFilePath, "error", err.Error())
+		fmt.Fprintf(os.Stderr, "Could not get file content type: %s error=%v\n", srcFilePath, err.Error())
 		return nil
 	}
 
 	// Skip non image and video files
 	supportedFileContentTypes := []string{"image/jpeg", "video/mp4"}
 	if !slices.Contains(supportedFileContentTypes, fileContentType) {
-		slog.Warn("File is not a image or video", "srcPath", srcFilePath, "fileContentTrypes", fileContentType)
+		fmt.Fprintf(os.Stderr, "File is not a image or video: %s\n", srcFilePath)
 		return nil
 	}
 
@@ -150,7 +149,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		}
 	}
 	if destFilePath.creationTime.IsZero() {
-		slog.Error("Could not determine creation time", "srcPath", srcFilePath)
+		fmt.Fprintf(os.Stderr, "Could not determine creation time srcPath=%v\n", srcFilePath)
 		return nil
 	}
 
@@ -159,7 +158,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	if !doesPathExist(folderPath) {
 		err := os.MkdirAll(folderPath, os.ModePerm)
 		if err != nil {
-			slog.Error("Could not create folder", "folderPath", folderPath, "error", err.Error())
+			fmt.Fprintf(os.Stderr, "Could not create folder folderPath=%v error=%v\n", folderPath, err.Error())
 			// Stop completely since this likely also affects other files
 			return filepath.SkipAll
 		}
@@ -169,39 +168,39 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	for doesPathExist(destFilePath.generate()) {
 		srcFileHash, err := getFileHash(srcFile)
 		if err != nil {
-			slog.Error("Could not get file hash", "path", srcFilePath, "error", err.Error())
+			fmt.Fprintf(os.Stderr, "Could not get file hash path=%v error=%v\n", srcFilePath, err.Error())
 			return nil
 		}
 
 		// Get hash of the existing file
 		destFile, err := os.Open(destFilePath.generate())
 		if err != nil {
-			slog.Error("Could not open file", "destPath", destFilePath.generate(), "error", err.Error())
+			fmt.Fprintf(os.Stderr, "Could not open file destPath=%v error=%v\n", destFilePath.generate(), err.Error())
 			return nil
 		}
 		destFileHash, err := getFileHash(destFile)
 		if err != nil {
-			slog.Error("Could not get file hash", "destPath", destFilePath.generate(), "error", err.Error())
+			fmt.Fprintf(os.Stderr, "Could not get file hash destPath=%v error=%v\n", destFilePath.generate(), err.Error())
 			return nil
 		}
 		destFile.Close()
 
 		if srcFileHash == destFileHash {
 			// Skip if they are the same
-			slog.Warn("File already exists", "destPath", destFilePath.generate())
+			fmt.Fprintf(os.Stderr, "File already exists destPath=%v\n", destFilePath.generate())
 
 			// Remove duplicated file if configured
 			if config.RemoveDuplicates {
 				err := os.Remove(srcFilePath)
 				if err != nil {
-					slog.Error("Could not remove file", "srcPath", srcFilePath, "error", err.Error())
+					fmt.Fprintf(os.Stderr, "Could not remove file srcPath=%v error=%v\n", srcFilePath, err.Error())
 				}
 			}
 
 			return nil
 		} else {
 			// Try another name if they are different
-			slog.Warn("Different file with same path found", "destPath", destFilePath.generate())
+			fmt.Fprintf(os.Stderr, "Different file with same path found destPath=%v\n", destFilePath.generate())
 			destFilePath.number++
 		}
 	}
@@ -209,13 +208,13 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	// Copy or move the file
 	err = copyFile(srcFile, destFilePath.generate())
 	if err != nil {
-		slog.Error("Could not copy file", "srcPath", srcFilePath, "error", err.Error())
+		fmt.Fprintf(os.Stderr, "Could not copy file srcPath=%v error=%v\n", srcFilePath, err.Error())
 		return nil
 	}
 	if config.MoveFiles {
 		err = os.Remove(srcFilePath)
 		if err != nil {
-			slog.Error("Could not remove file", "srcPath", srcFilePath, "error", err.Error())
+			fmt.Fprintf(os.Stderr, "Could not remove file srcPath=%v error=%v\n", srcFilePath, err.Error())
 			return nil
 		}
 	}
