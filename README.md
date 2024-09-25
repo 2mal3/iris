@@ -16,6 +16,21 @@ A streamlined CLI application designed to efficiently rename and organize your p
 Iris renames each file (if a recording date was found) according to the following scheme: `year-month-day_hour-minute-second.extension`. The file is then moved to a subfolder named after the year and quarter in the `year-quarter` format.
 However, no normal quatals are used to better accommodate typical vacation periods. Instead, all quatals are moved back by two months. For example, February 2024 will still fall into quarter `2023-4` and December 2024 already into quarter `2025-1`.
 
+| Original Month and Year | Folder Name |
+| ----------------------- | ----------- |
+| January 2023            | 2022-4      |
+| February 2023           | 2022-4      |
+| March 2023              | 2023-1      |
+| April 2023              | 2023-1      |
+| May 2023                | 2023-1      |
+| June 2023               | 2023-2      |
+| July 2023               | 2023-2      |
+| August 2023             | 2023-2      |
+| September 2023          | 2023-3      |
+| October 2023            | 2023-3      |
+| November 2023           | 2023-3      |
+| December 2023           | 2023-4      |
+
 ## Usage
 
 1. download the appropriate file for your architecture from the releases page
