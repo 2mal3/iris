@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -142,40 +143,9 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 		fileExtension: filepath.Ext(srcFilePath),
 	}
 
-	// Get creation time, important to distinct images and videos since they have different metadata
-	if strings.HasPrefix(fileContentType, "image") {
-		destFilePath.creationTime, _ = getImageCreationTime(srcFile)
-	}
-	if strings.HasPrefix(fileContentType, "video") {
-		destFilePath.creationTime, _ = getVideoCreationTime(srcFile)
-	}
-	// Try to get date from the filename if the above don't work
-	if destFilePath.creationTime.IsZero() {
-		srcFileName := strings.TrimSuffix(filepath.Base(srcFilePath), filepath.Ext(srcFilePath))
-		// 2006: year, 01: month, 02: day, 15: hour, 04: minute, 05: second
-		possibleTimeFormats := []string{
-			"2006-01-02_15-04-05",
-			"IMG_20060102_150405",
-			"PXL_20060102_150405",
-			"IMG-20060102",
-			"signal-2006-01-02-15-04-05",
-			"image_20060102150405",
-		}
-		for _, format := range possibleTimeFormats {
-			// Try to remove some random stuff at the end of some image names
-			if len(srcFileName) < len(format) {
-				continue
-			}
-			cleanSrcFileName := srcFileName[:len(format)]
-
-			destFilePath.creationTime, err = time.Parse(format, cleanSrcFileName)
-			if err == nil {
-				break
-			}
-		}
-	}
-	if destFilePath.creationTime.IsZero() {
-		slog.Error("Could not determine creation time", "srcPath", srcFilePath)
+	destFilePath.creationTime, err = getCreationTimeFromMedia(srcFile, srcFilePath, fileContentType)
+	if err != nil {
+		slog.Error("Could not get media creation time", "srcPath", srcFilePath)
 		return nil
 	}
 
@@ -246,6 +216,45 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 	}
 
 	return nil
+}
+
+func getCreationTimeFromMedia(file *os.File, filePath string, fileContentType string) (time.Time, error) {
+	// Get creation time, important to distinct images and videos since they have different metadata
+	if strings.HasPrefix(fileContentType, "image") {
+		if creationTime, err := getImageCreationTime(file); err == nil {
+			return creationTime, nil
+		}
+	}
+	if strings.HasPrefix(fileContentType, "video") {
+		if creationTime, err := getVideoCreationTime(file); err == nil {
+			return creationTime, nil
+		}
+	}
+
+	// Try to get date from the filename if the above don't work
+	srcFileName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+	// 2006: year, 01: month, 02: day, 15: hour, 04: minute, 05: second
+	possibleTimeFormats := []string{
+		"2006-01-02_15-04-05",
+		"IMG_20060102_150405",
+		"PXL_20060102_150405",
+		"IMG-20060102",
+		"signal-2006-01-02-15-04-05",
+		"image_20060102150405",
+	}
+	for _, format := range possibleTimeFormats {
+		// Try to remove some random stuff at the end of some image names
+		if len(srcFileName) < len(format) {
+			continue
+		}
+		cleanSrcFileName := srcFileName[:len(format)]
+
+		if creationTime, err := time.Parse(format, cleanSrcFileName); err == nil {
+			return creationTime, nil
+		}
+	}
+
+	return time.Time{}, errors.New("could not determine media creation time")
 }
 
 type destFilePath struct {
