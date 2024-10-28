@@ -1,5 +1,6 @@
 # editor files
 .vscode/
+.idea/
 
 # individual files
 config.yaml
