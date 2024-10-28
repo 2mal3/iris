@@ -27,7 +27,7 @@ var config Config = Config{
 }
 
 func main() {
-	slog.Info("Starting Iris v0.1.0...")
+	slog.Info("Starting Iris v0.1.2...")
 
 	slog.Info("Loading config ...")
 	if err := loadConfig(&config); err != nil {
