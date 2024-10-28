@@ -241,6 +241,7 @@ func getCreationTimeFromMedia(file *os.File, filePath string, fileContentType st
 		"IMG-20060102",
 		"signal-2006-01-02-15-04-05",
 		"image_20060102150405",
+		"20060102_150405",
 	}
 	for _, format := range possibleTimeFormats {
 		// Try to remove some random stuff at the end of some image names
