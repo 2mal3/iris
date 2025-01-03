@@ -145,7 +145,7 @@ func walk(srcFilePath string, srcFileInfo os.DirEntry, err error) error {
 
 	destFilePath.creationTime, err = getCreationTimeFromMedia(srcFile, srcFilePath, fileContentType)
 	if err != nil {
-		slog.Error("Could not get media creation time", "srcPath", srcFilePath)
+		slog.Warn("Could not get media creation time", "srcPath", srcFilePath)
 		return nil
 	}
 
